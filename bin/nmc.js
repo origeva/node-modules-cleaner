@@ -24,24 +24,24 @@ const search = async (name, base, options) => {
 const clean = (dir) => {
 	return fs.rm(dir, { recursive: true })
 }
-const nmc = () => {
+const nmc = async () => {
 	let options = {}
 	let args = process.argv.slice(2)
 	if (args.includes('-l') || args.includes('--log')) options.log = true
 
 	if (options.log) console.log('\x1b[32m', 'Searching...', '\x1b[0m')
-	search('node_modules').then((results) => {
-		if (results.length) {
-			if (options.log) console.log('Directories found:', results)
-			results.forEach((res) => {
-				clean(res)
-			})
-		} else {
-			console.error('\x1b[31m', 'No node_modules directories found', '\x1b[0m')
-			process.exit(1)
-		}
-		console.log('\x1b[32m', 'nmc done!', '\x1b[0m')
-	})
+	let results = await search('node_modules')
+	if (results.length) {
+		if (options.log) console.log('Directories found:', results)
+		results.map((res) => {
+			clean(res)
+		})
+		await Promise.allSettled(results)
+	} else {
+		console.error('\x1b[31m', 'No node_modules directories found', '\x1b[0m')
+		process.exit(1)
+	}
+	console.log('\x1b[32m', 'nmc done!', '\x1b[0m')
 }
 
 nmc()
