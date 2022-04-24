@@ -8,36 +8,56 @@ const stat = promisify(fs.stat)
 const unlink = promisify(fs.unlink)
 const rmdir = promisify(fs.rmdir)
 
+if (!Promise.allSettled) {
+  Promise.allSettled = promises =>
+    Promise.all(
+      promises.map((promise) =>
+        promise
+          .then(value => ({
+            status: "fulfilled",
+            value,
+          }))
+          .catch(reason => ({
+            status: "rejected",
+            reason,
+          }))
+      )
+    );
+}
+
 const search = async (name, base, options) => {
 	base = base ? path.normalize(base) : process.cwd()
 	let files = await readdir(base)
 	let results = []
-	for (let i = 0; i < files.length; i++) {
-		let currentPath = path.join(base, files[i])
+	let actions = files.map(async (file) => {
+		let currentPath = path.join(base, file)
 		if ((await stat(currentPath)).isDirectory()) {
-			if (files[i] === name) {
+			if (file === name) {
 				results.push(currentPath)
 			} else {
 				results.push(...(await search(name, currentPath, options)))
 			}
 		}
-	}
+	})
+	await Promise.allSettled(actions)
 
 	return results
 }
 
 const clean = async (dir) => {
 	let files = await readdir(dir)
-	for (let file of files) {
+	let actions = files.map(async (file) => {
 		let currentPath = path.join(dir, file)
 		if ((await stat(currentPath)).isDirectory()) {
-			await clean(currentPath).catch(console.error)
+			await clean(currentPath)
 		} else {
 			await unlink(currentPath)
 		}
-	}
+	})
+	await Promise.allSettled(actions)
 	await rmdir(dir)
 }
+
 const nmc = async () => {
 	let options = {}
 	let args = process.argv.slice(2)
@@ -47,10 +67,10 @@ const nmc = async () => {
 	let results = await search('node_modules')
 	if (results.length) {
 		if (options.log) console.log('Directories found:', results)
-		results.map((res) => {
-			clean(res).catch(console.error)
+		let actions = results.map(async (res) => {
+			await clean(res)
 		})
-		await Promise.all(results)
+		await Promise.allSettled(actions)
 	} else {
 		console.error('\x1b[31m', 'No node_modules directories found', '\x1b[0m')
 		process.exit(1)
