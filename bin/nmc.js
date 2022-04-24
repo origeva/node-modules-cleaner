@@ -1,16 +1,21 @@
 #! /usr/bin/env node
 
-const fs = require('fs/promises')
+const fs = require('fs')
 const path = require('path')
+const { promisify } = require('util')
+const readdir = promisify(fs.readdir)
+const stat = promisify(fs.stat)
+const unlink = promisify(fs.unlink)
+const rmdir = promisify(fs.rmdir)
 
 const search = async (name, base, options) => {
 	base = base ? path.normalize(base) : process.cwd()
-	let dir = await fs.readdir(base)
+	let files = await readdir(base)
 	let results = []
-	for (let i = 0; i < dir.length; i++) {
-		let currentPath = path.join(base, dir[i])
-		if ((await fs.stat(currentPath)).isDirectory()) {
-			if (dir[i] === name) {
+	for (let i = 0; i < files.length; i++) {
+		let currentPath = path.join(base, files[i])
+		if ((await stat(currentPath)).isDirectory()) {
+			if (files[i] === name) {
 				results.push(currentPath)
 			} else {
 				results.push(...(await search(name, currentPath, options)))
@@ -21,8 +26,17 @@ const search = async (name, base, options) => {
 	return results
 }
 
-const clean = (dir) => {
-	return fs.rm(dir, { recursive: true })
+const clean = async (dir) => {
+	let files = await readdir(dir)
+	for (let file of files) {
+		let currentPath = path.join(dir, file)
+		if ((await stat(currentPath)).isDirectory()) {
+			await clean(currentPath).catch(console.error)
+		} else {
+			await unlink(currentPath)
+		}
+	}
+	await rmdir(dir)
 }
 const nmc = async () => {
 	let options = {}
@@ -34,9 +48,9 @@ const nmc = async () => {
 	if (results.length) {
 		if (options.log) console.log('Directories found:', results)
 		results.map((res) => {
-			clean(res)
+			clean(res).catch(console.error)
 		})
-		await Promise.allSettled(results)
+		await Promise.all(results)
 	} else {
 		console.error('\x1b[31m', 'No node_modules directories found', '\x1b[0m')
 		process.exit(1)
