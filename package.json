@@ -12,7 +12,7 @@
 		"url": "https://github.com/origeva/nmc"
 	},
 	"scripts": {
-		"start": "node bin/nmc.js"
+		"start": "node ."
 	},
 	"keywords": [
 		"node",
